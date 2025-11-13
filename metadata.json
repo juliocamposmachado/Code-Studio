@@ -1,0 +1,5 @@
+{
+  "name": "Code Studio com Gemini API",
+  "description": "An interactive web application that allows users to generate and preview websites in real-time by chatting with the Gemini AI.",
+  "requestFramePermissions": []
+}
