@@ -91,6 +91,9 @@ function App() {
           </div>
         </section>
       </main>
+      <footer className="flex-shrink-0 text-center text-gray-500 text-xs p-2">
+        Programador Full Stack: JLike Look Solutions // Secure Chat Environment // Whatsapp +551136808030 // likelook@live.com, <a href="https://likelook.wixsite.com/solutions" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">https://likelook.wixsite.com/solutions</a>
+      </footer>
     </div>
   );
 }
