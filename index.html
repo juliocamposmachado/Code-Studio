@@ -47,7 +47,8 @@
       }
       :host,
       html {
-          text-size-adjust: 100%;
+          -webkit-text-size-adjust: none; /* Prefixed version first */
+          text-size-adjust: none;        /* Standard version after */
       }
     </style>
 <script type="importmap">

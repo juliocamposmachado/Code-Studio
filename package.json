@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run build",
+    "build": "vite build",
     "preview": "vite preview",
     "dev:electron": "concurrently \"npm run dev\" \"electron .\"",
     "build:electron": "electron-builder --win"
