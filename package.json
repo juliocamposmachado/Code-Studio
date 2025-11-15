@@ -10,9 +10,11 @@
   },
   "dependencies": {
     "@google/genai": "^1.29.1",
+    "@tailwindcss/vite": "^4.1.17",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-syntax-highlighter": "^16.1.0"
+    "react-syntax-highlighter": "^16.1.0",
+    "tailwindcss": "^4.1.17"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
