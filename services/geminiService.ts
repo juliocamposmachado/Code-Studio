@@ -1,9 +1,6 @@
-
 import { GoogleGenAI, Type, Content } from "@google/genai";
-import { Message } from '../types';
+import { Message, Files } from '../types';
 
-// The API key MUST be obtained from the environment variable `process.env.API_KEY`.
-// Do not hardcode the API key here.
 const apiKey = process.env.API_KEY;
 if (!apiKey) {
     console.error("API_KEY environment variable not set.");
@@ -13,9 +10,24 @@ const ai = new GoogleGenAI({ apiKey: apiKey! });
 
 const modelName = "gemini-2.5-flash";
 
-const systemInstruction = `You are an expert web developer AI assistant named 'Code Studio Assistant'.
-Your goal is to help users build and modify web pages through conversation.
-Based on the user's prompt and the conversation history, provide a friendly conversational reply and the complete, self-contained HTML code for the web page.
+const getSystemInstruction = (files: Files, activeFile: string): string => {
+    const fileList = Object.keys(files).join(', ');
+    const activeFileContent = files[activeFile]?.content || '';
+
+    return `You are an expert web developer AI assistant acting as a VS Code extension.
+Your goal is to help users build and modify web pages by editing their code files.
+
+The user is working on a project with the following files: ${fileList}.
+The currently active file is \`${activeFile}\`.
+
+The current content of \`${activeFile}\` is:
+\`\`\`${files[activeFile]?.language}
+${activeFileContent}
+\`\`\`
+
+Based on the user's prompt, you must provide a friendly conversational reply and the complete, updated code for the currently active file (\`${activeFile}\`).
+Do not suggest creating new files. Only modify the active file.
+Ensure the generated code is complete and self-contained for that file.
 
 You MUST respond with a valid JSON object that follows this schema:
 {
@@ -23,27 +35,30 @@ You MUST respond with a valid JSON object that follows this schema:
   "properties": {
     "message": {
       "type": "STRING",
-      "description": "Your friendly, conversational reply to the user. You can use markdown."
+      "description": "Your friendly, conversational reply to the user, in markdown format."
     },
     "code": {
       "type": "STRING",
-      "description": "The complete, self-contained HTML code. It must include all necessary CSS (in a <style> tag) and JavaScript (in a <script> tag)."
+      "description": "The complete, updated code for the active file '${activeFile}'. It must be a single string."
     }
   },
   "required": ["message", "code"]
 }
 
-If the user asks for a modification, update the code from the last turn.
+If the user asks for a modification, update the code from the provided content of the active file.
 If the user's request is unclear or not related to web development, ask for clarification in the 'message' field and return the last valid code in the 'code' field.`;
+}
 
-export const generateContentFromChat = async (history: Message[]): Promise<{ message: string; code: string }> => {
+export const generateContentFromChat = async (history: Message[], files: Files, activeFile: string): Promise<{ message: string; code: string }> => {
   if (!apiKey) {
     return {
       message: "API Key not configured. Please set the `process.env.API_KEY` environment variable.",
-      code: `<html><body><h1>Configuration Error</h1><p>API Key is missing.</p></body></html>`,
+      code: files[activeFile]?.content || `<h1>Configuration Error</h1><p>API Key is missing.</p>`,
     };
   }
 
+  const systemInstruction = getSystemInstruction(files, activeFile);
+  
   const contents: Content[] = history.map(msg => ({
     role: msg.role,
     parts: [{ text: msg.content }],
@@ -86,7 +101,7 @@ export const generateContentFromChat = async (history: Message[]): Promise<{ mes
     }
     return {
       message: errorMessage,
-      code: `<html><body><h1>Error</h1><p>Could not get a valid response from the AI.</p><p>${errorMessage}</p></body></html>`,
+      code: files[activeFile]?.content || `<h1>Error</h1><p>Could not get a valid response from the AI.</p>`,
     };
   }
 };
