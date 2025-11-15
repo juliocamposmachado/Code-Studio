@@ -24,7 +24,7 @@
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #1f2937; /* gray-800 */
+        background: #1e1e1e;
       }
       html.dark ::-webkit-scrollbar-track {
         background: #1e1e1e;
@@ -33,22 +33,17 @@
         background: #f1f1f1;
       }
       ::-webkit-scrollbar-thumb {
-        background: #4b5563; /* gray-600 */
+        background: #4f4f4f;
         border-radius: 4px;
       }
        html:not(.dark) ::-webkit-scrollbar-thumb {
         background: #c1c1c1;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #6b7280; /* gray-500 */
+        background: #6f6f6f;
       }
        html:not(.dark) ::-webkit-scrollbar-thumb:hover {
         background: #a8a8a8;
-      }
-      :host,
-      html {
-          -webkit-text-size-adjust: none; /* Prefixed version first */
-          text-size-adjust: none;        /* Standard version after */
       }
     </style>
 <script type="importmap">
@@ -65,9 +60,11 @@
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
 </head>
   <body class="bg-white dark:bg-[#1e1e1e] text-gray-800 dark:text-gray-300">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-  </body>
+  <script type="module" src="/index.tsx"></script>
+</body>
 </html>
