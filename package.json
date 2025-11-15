@@ -1,23 +1,31 @@
 {
-  "name": "code-studio-com-gemini-api",
+  "name": "code-studio-gemini-api",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:electron": "concurrently \"npm run dev\" \"electron .\"",
+    "build:electron": "electron-builder --win"
   },
   "dependencies": {
-    "react": "^19.2.0",
     "@google/genai": "^1.29.1",
+    "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-syntax-highlighter": "^16.1.0"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
-  }
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^9.2.1",
+    "electron": "^39.2.0",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.5.3",
+    "vite": "^7.2.2"
+  },
+  "main": "main.js"
 }
