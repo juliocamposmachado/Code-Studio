@@ -14,7 +14,11 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
+<<<<<<< HEAD
   ],
   "buildCommand": "vite build",
   "outputDirectory": "dist"
+=======
+  ]
+>>>>>>> 3672738431ffd393bd549469ea396a4185a43b42
 }
