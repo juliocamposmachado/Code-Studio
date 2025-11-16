@@ -10,4 +10,4 @@ export interface File {
 
 export type Files = Record<string, File>;
 
-export type ViewMode = 'explorer' | 'chat';
+export type ViewMode = 'explorer' | 'settings' | 'source-control' | 'extensions' | 'accounts';

@@ -1,47 +1,112 @@
 import React from 'react';
-import { ViewMode, Files, Message } from '../types';
+import { ViewMode, Files } from '../types';
 import { FileExplorer } from './FileExplorer';
-import { Chat } from './Chat';
+import { SettingsView } from './SettingsView';
+import { SourceControlView } from './SourceControlView';
+import { ExtensionsView } from './ExtensionsView';
+import { AccountsView } from './AccountsView';
+
+interface GitHubUser {
+    username: string;
+    name: string | null;
+    avatarUrl: string;
+}
 
 interface SidebarProps {
+  width: number;
   viewMode: ViewMode;
   files: Files;
   onOpenFile: (fileName: string) => void;
-  messages: Message[];
-  onSendMessage: (message: string) => void;
-  isLoading: boolean;
   onImportRepo: (url: string) => Promise<void>;
   onClearProject: () => void;
+  theme: 'dark' | 'light';
+  setTheme: (theme: 'dark' | 'light') => void;
+  committedFiles: Files;
+  onCommitChanges: () => void;
+  onDiscardFileChanges: (fileName: string) => void;
+  apiKey: string;
+  onApiKeyChange: (newKey: string) => void;
+  modifiedByAI: string[];
+  githubUser: GitHubUser | null;
+  setGithubUser: (user: GitHubUser | null) => void;
 }
 
+const viewTitles: Record<ViewMode, string> = {
+    explorer: 'Explorer',
+    settings: 'Settings',
+    'source-control': 'Source Control',
+    extensions: 'Extensions',
+    accounts: 'Accounts',
+};
+
 export const Sidebar: React.FC<SidebarProps> = ({
+  width,
   viewMode,
   files,
   onOpenFile,
-  messages,
-  onSendMessage,
-  isLoading,
   onImportRepo,
-  onClearProject
+  onClearProject,
+  theme,
+  setTheme,
+  committedFiles,
+  onCommitChanges,
+  onDiscardFileChanges,
+  apiKey,
+  onApiKeyChange,
+  modifiedByAI,
+  githubUser,
+  setGithubUser,
 }) => {
   return (
-    <aside className="w-64 bg-gray-100 dark:bg-[#252526] flex flex-col border-r border-gray-300 dark:border-gray-900/50">
-        <header className="p-2.5 text-xs font-semibold tracking-wider uppercase text-gray-500 dark:text-gray-400 border-b border-gray-300 dark:border-gray-900/50">
-            {viewMode === 'explorer' ? 'Explorer' : 'AI Assistant'}
-        </header>
-        <div className="flex-1 overflow-y-auto">
-        {viewMode === 'explorer' && (
-            <FileExplorer
-                files={files}
-                onOpenFile={onOpenFile}
-                onImportRepo={onImportRepo}
-                onClearProject={onClearProject}
-            />
-        )}
-        {viewMode === 'chat' && (
-            <Chat messages={messages} onSendMessage={onSendMessage} isLoading={isLoading} />
-        )}
-        </div>
+    <aside 
+        className="bg-gray-100 dark:bg-[#252526] flex flex-col border-r border-gray-300 dark:border-gray-900/50 overflow-hidden flex-shrink-0"
+        style={{ width: `${width}px` }}
+    >
+       {width > 0 && (
+         <>
+            <header className="p-2.5 text-xs font-semibold tracking-wider uppercase text-gray-500 dark:text-gray-400 border-b border-gray-300 dark:border-gray-900/50 flex-shrink-0">
+                <span>{viewTitles[viewMode]}</span>
+            </header>
+            <div className="flex-1 overflow-y-auto min-w-[16rem]">
+            {viewMode === 'explorer' && (
+                <FileExplorer
+                    files={files}
+                    onOpenFile={onOpenFile}
+                    onImportRepo={onImportRepo}
+                    modifiedByAI={modifiedByAI}
+                />
+            )}
+            {viewMode === 'settings' && (
+                <SettingsView
+                    theme={theme}
+                    setTheme={setTheme}
+                    onClearProject={onClearProject}
+                />
+            )}
+            {viewMode === 'source-control' && (
+                <SourceControlView
+                    files={files}
+                    committedFiles={committedFiles}
+                    onCommitChanges={onCommitChanges}
+                    onDiscardFileChanges={onDiscardFileChanges}
+                />
+            )}
+            {viewMode === 'extensions' && (
+                <ExtensionsView
+                    currentApiKey={apiKey}
+                    onApiKeyChange={onApiKeyChange}
+                />
+            )}
+            {viewMode === 'accounts' && (
+                <AccountsView 
+                    githubUser={githubUser}
+                    setGithubUser={setGithubUser}
+                    onImportRepo={onImportRepo}
+                />
+            )}
+            </div>
+         </>
+       )}
     </aside>
   );
 };

@@ -1,11 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Message } from '../types';
-import { SendIcon } from './icons';
+import { SendIcon, CheckIcon } from './icons';
+
+interface Roadmap {
+    tasks: string[];
+    currentStep: number;
+}
 
 interface ChatProps {
   messages: Message[];
   onSendMessage: (message: string) => void;
   isLoading: boolean;
+  activeRoadmap: Roadmap | null;
+  onProceedWithRoadmap: () => void;
 }
 
 const LoadingIndicator: React.FC = () => (
@@ -27,7 +34,7 @@ const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
     );
 };
 
-export const Chat: React.FC<ChatProps> = ({ messages, onSendMessage, isLoading }) => {
+export const Chat: React.FC<ChatProps> = ({ messages, onSendMessage, isLoading, activeRoadmap, onProceedWithRoadmap }) => {
   const [input, setInput] = useState('');
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -35,7 +42,7 @@ export const Chat: React.FC<ChatProps> = ({ messages, onSendMessage, isLoading }
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, activeRoadmap]);
 
   const handleSend = () => {
     if (input.trim() && !isLoading) {
@@ -50,6 +57,9 @@ export const Chat: React.FC<ChatProps> = ({ messages, onSendMessage, isLoading }
       handleSend();
     }
   };
+  
+  const isLastMessageFromModel = messages[messages.length - 1]?.role === 'model';
+
 
   return (
     <div className="flex flex-col h-full bg-transparent">
@@ -64,6 +74,42 @@ export const Chat: React.FC<ChatProps> = ({ messages, onSendMessage, isLoading }
                     </div>
                 </div>
             )}
+            
+            {/* Display Roadmap if active */}
+            {activeRoadmap && isLastMessageFromModel && !isLoading && (
+                <div className="flex justify-start">
+                    <div className="max-w-[90%] w-full p-3 rounded-lg text-sm bg-gray-600/50 dark:bg-gray-700/80">
+                        <h4 className="font-bold text-xs mb-2 text-gray-200 uppercase tracking-wider">Execution Plan</h4>
+                        <ul className="space-y-1.5 text-white">
+                            {activeRoadmap.tasks.map((task, index) => (
+                                <li key={index} className="flex items-center">
+                                    {index < activeRoadmap.currentStep ? (
+                                        <CheckIcon className="w-4 h-4 mr-2 text-green-400 flex-shrink-0" />
+                                    ) : (
+                                        <div className={`w-4 h-4 mr-2 flex-shrink-0 flex items-center justify-center`}>
+                                           <span className={`w-2 h-2 rounded-full ${index === activeRoadmap.currentStep ? 'bg-blue-400 animate-pulse' : 'bg-gray-500'}`}></span>
+                                        </div>
+                                    )}
+                                    <span className={index < activeRoadmap.currentStep ? 'line-through text-gray-400' : ''}>
+                                        {task}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                        {activeRoadmap.currentStep < activeRoadmap.tasks.length && (
+                             <div className="mt-4 border-t border-gray-500/50 pt-3">
+                                <button 
+                                    onClick={onProceedWithRoadmap}
+                                    disabled={isLoading}
+                                    className="w-full text-center px-2 py-1.5 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 transition-colors disabled:bg-gray-500"
+                                >
+                                    Proceed with Next Step
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
         <div className="p-2 border-t border-gray-300 dark:border-gray-700">
             <div className="relative">
@@ -75,10 +121,11 @@ export const Chat: React.FC<ChatProps> = ({ messages, onSendMessage, isLoading }
                     className="w-full bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 rounded-lg py-2 pl-3 pr-12 resize-none focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
                     rows={2}
                     aria-label="Chat input"
+                    disabled={isLoading || (activeRoadmap && activeRoadmap.currentStep < activeRoadmap.tasks.length)}
                 />
                 <button
                     onClick={handleSend}
-                    disabled={isLoading}
+                    disabled={isLoading || (activeRoadmap && activeRoadmap.currentStep < activeRoadmap.tasks.length)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-md bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors"
                     aria-label="Send message"
                 >

@@ -3,17 +3,16 @@ import { GitHubIcon } from './icons';
 
 interface GitHubImporterProps {
   onImport: (url: string) => Promise<void>;
-  onClear: () => void;
 }
 
-export const GitHubImporter: React.FC<GitHubImporterProps> = ({ onImport, onClear }) => {
+export const GitHubImporter: React.FC<GitHubImporterProps> = ({ onImport }) => {
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleImportClick = async () => {
     if (!url.trim()) {
-      setError("Please enter a GitHub repository URL.");
+      setError("URL é obrigatória.");
       return;
     }
     setIsLoading(true);
@@ -22,7 +21,7 @@ export const GitHubImporter: React.FC<GitHubImporterProps> = ({ onImport, onClea
       await onImport(url);
       setUrl('');
     } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred during import.';
+      const errorMessage = e instanceof Error ? e.message : 'Ocorreu um erro desconhecido durante a importação.';
       setError(errorMessage);
       console.error(e);
     } finally {
@@ -37,38 +36,26 @@ export const GitHubImporter: React.FC<GitHubImporterProps> = ({ onImport, onClea
   };
 
   return (
-    <div className="p-1.5">
-      <div className="flex items-center space-x-2">
-        <GitHubIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-        <h3 className="text-sm font-bold text-gray-600 dark:text-gray-300">Import Project</h3>
-      </div>
-      <div className="mt-2 space-y-2">
+    <div className="relative flex items-center w-full max-w-sm">
+        <GitHubIcon className="w-4 h-4 text-gray-500 absolute left-2 pointer-events-none" />
         <input
           type="text"
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => { setUrl(e.target.value); setError(null); }}
           onKeyPress={handleKeyPress}
-          placeholder="https://github.com/owner/repo"
-          className="w-full bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 rounded-md px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none text-xs"
+          placeholder="Importar de URL do GitHub..."
+          className={`w-full bg-gray-100 dark:bg-gray-800/50 text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 rounded-md pl-8 pr-16 py-1 focus:ring-2 focus:ring-blue-500 focus:outline-none text-xs ${error ? 'ring-2 ring-red-500' : ''}`}
           aria-label="GitHub Repository URL"
           disabled={isLoading}
         />
         <button
           onClick={handleImportClick}
           disabled={isLoading}
-          className="w-full text-center px-2 py-1.5 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors"
+          className="absolute right-1 top-1/2 -translate-y-1/2 text-center px-2 py-0.5 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors"
         >
-          {isLoading ? 'Importing...' : 'Import from GitHub'}
+          {isLoading ? '...' : 'Importar'}
         </button>
-        <button
-          onClick={onClear}
-          disabled={isLoading}
-          className="w-full text-center px-2 py-1 bg-gray-600 text-white rounded-md text-xs hover:bg-gray-700 disabled:bg-gray-500/50"
-        >
-          Clear Project
-        </button>
-        {error && <p className="text-xs text-red-500 dark:text-red-400 mt-1">{error}</p>}
-      </div>
+        {error && <p className="absolute top-full left-0 text-xs text-red-500 dark:text-red-400 mt-1">{error}</p>}
     </div>
   );
 };

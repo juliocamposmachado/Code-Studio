@@ -3,10 +3,9 @@ import { GitHubIcon } from './icons';
 
 interface GitHubImporterProps {
   onImport: (url: string) => Promise<void>;
-  onClear: () => void;
 }
 
-export const GitHubImporter: React.FC<GitHubImporterProps> = ({ onImport, onClear }) => {
+export const GitHubImporter: React.FC<GitHubImporterProps> = ({ onImport }) => {
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +38,7 @@ export const GitHubImporter: React.FC<GitHubImporterProps> = ({ onImport, onClea
   return (
     <div className="p-1.5">
       <div className="flex items-center space-x-2">
-        <GitHubIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+        <GitHubIcon className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
         <h3 className="text-sm font-bold text-gray-600 dark:text-gray-300">Import Project</h3>
       </div>
       <div className="mt-2 space-y-2">
@@ -59,13 +58,6 @@ export const GitHubImporter: React.FC<GitHubImporterProps> = ({ onImport, onClea
           className="w-full text-center px-2 py-1.5 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors"
         >
           {isLoading ? 'Importing...' : 'Import from GitHub'}
-        </button>
-        <button
-          onClick={onClear}
-          disabled={isLoading}
-          className="w-full text-center px-2 py-1 bg-gray-600 text-white rounded-md text-xs hover:bg-gray-700 disabled:bg-gray-500/50"
-        >
-          Clear Project
         </button>
         {error && <p className="text-xs text-red-500 dark:text-red-400 mt-1">{error}</p>}
       </div>

@@ -1,74 +1,38 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+
+
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Message, Files, ViewMode } from './types';
 import { generateContentFromChat } from './services/geminiService';
 import { importRepoFromUrl } from './services/githubService';
+import { executeCommand } from './services/commandExecutor';
+import { handleGitHubCallback, exchangeCodeForToken, fetchGitHubUser } from './services/authService';
 import { ActivityBar } from './components/ActivityBar';
 import { Sidebar } from './components/Sidebar';
 import { Editor } from './components/Editor';
 import { StatusBar } from './components/StatusBar';
+import { ChatPanel } from './components/ChatPanel';
+import { Resizer } from './components/Resizer';
+import { SplashScreen } from './components/SplashScreen';
+import { exampleProjects } from './services/exampleProjects';
 
-const initialFiles: Files = {
-  'index.html': {
-    language: 'html',
-    content: `
-<div class="container">
-  <h1>Welcome to Code Studio!</h1>
-  <p>Use the chat to build your website.</p>
-  <button id="myButton">Click Me</button>
-</div>
-    `.trim(),
-  },
-  'style.css': {
-    language: 'css',
-    content: `
-body {
-  font-family: sans-serif;
-  background-color: #f0f2f5;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  margin: 0;
+interface Roadmap {
+    tasks: string[];
+    currentStep: number;
 }
-.container {
-  text-align: center;
-  padding: 2rem;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+interface GitHubUser {
+    username: string;
+    name: string | null;
+    avatarUrl: string;
 }
-h1 {
-  color: #333;
-}
-button {
-  background-color: #007bff;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 16px;
-  transition: background-color 0.3s;
-}
-button:hover {
-  background-color: #0056b3;
-}
-    `.trim(),
-  },
-  'script.js': {
-    language: 'javascript',
-    content: `
-document.getElementById('myButton').addEventListener('click', () => {
-  alert('Hello from Code Studio!');
-});
-    `.trim(),
-  },
-};
+
+const initialFiles: Files = exampleProjects.find(p => p.id === 'js-pong')?.files || {};
 
 const initialMessages: Message[] = [
   {
     role: 'model',
-    content: "Hello! I'm your AI coding assistant. Select a file and ask me to make changes. For example, try 'Change the button color to green' while editing 'style.css'.",
+    content: "Hello! I'm Julio, your expert AI fullstack assistant. I can write and modify code in any language, and even run commands in the terminal. How can I help you today?",
   },
 ];
 
@@ -92,15 +56,85 @@ const getInitialFiles = (): Files => {
   return initialFiles;
 };
 
+const getLanguageFromFileName = (fileName: string): string => {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    switch (extension) {
+        case 'js':
+        case 'jsx':
+            return 'javascript';
+        case 'ts':
+        case 'tsx':
+            return 'typescript';
+        case 'html':
+            return 'html';
+        case 'css':
+            return 'css';
+        case 'json':
+            return 'json';
+        case 'md':
+            return 'markdown';
+        case 'py':
+            return 'python';
+        case 'java':
+            return 'java';
+        case 'c':
+        case 'cpp':
+            return 'cpp';
+        case 'cs':
+            return 'csharp';
+        case 'go':
+            return 'go';
+        case 'rb':
+            return 'ruby';
+        case 'php':
+            return 'php';
+        case 'sh':
+            return 'bash';
+        case 'yml':
+        case 'yaml':
+            return 'yaml';
+        default:
+            return 'plaintext';
+    }
+}
 
-function App() {
+const initialProjectFiles = getInitialFiles();
+
+const MIN_PANEL_WIDTH = 200;
+
+// FIX: Switched to a named export to resolve module loading issues.
+export function App() {
+  const [showStudio, setShowStudio] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [viewMode, setViewMode] = useState<ViewMode>('explorer');
   const [messages, setMessages] = useState<Message[]>(initialMessages);
-  const [files, setFiles] = useState<Files>(getInitialFiles());
+  const [files, setFiles] = useState<Files>(initialProjectFiles);
+  const [committedFiles, setCommittedFiles] = useState<Files>(initialProjectFiles);
   const [openTabs, setOpenTabs] = useState<string[]>(['index.html']);
-  const [activeTab, setActiveTab] = useState<string>('index.html');
+  const [activeTab, setActiveTab] = useState<string>('Live Preview');
   const [isLoading, setIsLoading] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem('gemini-api-key') || '');
+  const [modifiedByAI, setModifiedByAI] = useState<string[]>([]);
+  const [installedPackages, setInstalledPackages] = useState<string[]>([]);
+  const [terminalOutput, setTerminalOutput] = useState<React.ReactNode[]>([
+    <div key="welcome">Welcome to the temporary terminal! Type "help" for a list of commands.</div>
+  ]);
+  const [apiUsageCount, setApiUsageCount] = useState<number>(() => parseInt(localStorage.getItem('gemini-api-usage') || '0', 10));
+  const [activeRoadmap, setActiveRoadmap] = useState<Roadmap | null>(null);
+  const [githubUser, setGithubUser] = useState<GitHubUser | null>(() => {
+    const savedUser = localStorage.getItem('github-user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+
+  const [sidebarWidth, setSidebarWidth] = useState(256);
+  const [chatPanelWidth, setChatPanelWidth] = useState(320);
+
+  const sidebarWidthRef = useRef(sidebarWidth);
+  const chatPanelWidthRef = useRef(chatPanelWidth);
+
+  const isSidebarVisible = sidebarWidth > 0;
+  const isChatPanelVisible = chatPanelWidth > 0;
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -117,30 +151,180 @@ function App() {
         console.error("Failed to save files to localStorage", e);
     }
   }, [files]);
+  
+  useEffect(() => {
+    if (apiKey) {
+      localStorage.setItem('gemini-api-key', apiKey);
+    } else {
+      localStorage.removeItem('gemini-api-key');
+    }
+  }, [apiKey]);
+  
+  useEffect(() => {
+    localStorage.setItem('gemini-api-usage', apiUsageCount.toString());
+  }, [apiUsageCount]);
+
+  useEffect(() => {
+    if (githubUser) {
+        localStorage.setItem('github-user', JSON.stringify(githubUser));
+    } else {
+        localStorage.removeItem('github-user');
+    }
+  }, [githubUser]);
+
+  // Handle GitHub OAuth callback on initial load
+  useEffect(() => {
+    const processAuthCallback = async () => {
+        const code = handleGitHubCallback();
+        if (code) {
+            setIsAuthenticating(true);
+            try {
+                const tokenResponse = await exchangeCodeForToken(code);
+                const user = await fetchGitHubUser(tokenResponse.access_token);
+                setGithubUser({ 
+                    username: user.login, 
+                    avatarUrl: user.avatar_url, 
+                    name: user.name 
+                });
+                setShowStudio(true); // Automatically enter studio after login
+            } catch (error) {
+                console.error('GitHub auth failed:', error);
+                alert('An error occurred during GitHub authentication. Please check the console.');
+            } finally {
+                setIsAuthenticating(false);
+            }
+        }
+    };
+    processAuthCallback();
+  }, []);
+
+  const handleViewChange = (newMode: ViewMode | 'chat') => {
+    if (newMode === 'chat') {
+        setChatPanelWidth(prev => {
+            if (prev > 0) {
+                chatPanelWidthRef.current = prev;
+                return 0;
+            }
+            return chatPanelWidthRef.current;
+        });
+    } else {
+      if (viewMode === newMode && sidebarWidth > 0) {
+        sidebarWidthRef.current = sidebarWidth;
+        setSidebarWidth(0);
+      } else {
+        setViewMode(newMode);
+        if (sidebarWidth === 0) {
+            setSidebarWidth(sidebarWidthRef.current);
+        }
+      }
+    }
+  };
 
 
   const handleSendMessage = useCallback(async (prompt: string) => {
-    if (activeTab === 'Live Preview' || !files[activeTab]) {
-      setMessages(prev => [...prev, { role: 'model', content: "I can't edit this. Please select a valid file to modify." }]);
-      return;
-    }
-
     setIsLoading(true);
     const updatedMessages: Message[] = [...messages, { role: 'user', content: prompt }];
     setMessages(updatedMessages);
+    setApiUsageCount(prev => prev + 1);
 
-    const result = await generateContentFromChat(updatedMessages, files, activeTab);
+    const result = await generateContentFromChat(updatedMessages, files, apiKey);
 
     setMessages(prev => [...prev, { role: 'model', content: result.message }]);
-    if (result.code) {
-      setFiles(prevFiles => ({
-        ...prevFiles,
-        [activeTab]: { ...prevFiles[activeTab], content: result.code },
-      }));
+    
+    if (result.roadmap && result.roadmap.length > 0) {
+        setActiveRoadmap({ tasks: result.roadmap, currentStep: 0 });
+    } 
+    else if (activeRoadmap && Object.keys(result.filesToUpdate).length > 0) {
+        const nextStep = activeRoadmap.currentStep + 1;
+        if (nextStep >= activeRoadmap.tasks.length) {
+            setActiveRoadmap(null); // Roadmap finished
+        } else {
+            setActiveRoadmap(prev => prev ? ({ ...prev, currentStep: nextStep }) : null);
+        }
+    }
+
+    if (Object.keys(result.filesToUpdate).length > 0) {
+      const updatedFileNames = Object.keys(result.filesToUpdate);
+      setModifiedByAI(updatedFileNames);
+      
+      const newFilesCreated = updatedFileNames.filter(name => !files[name]);
+
+      setFiles(prevFiles => {
+        const newFiles = { ...prevFiles };
+        for (const fileName in result.filesToUpdate) {
+            // Check if file exists to update, otherwise create it
+            if (Object.prototype.hasOwnProperty.call(newFiles, fileName)) {
+                newFiles[fileName] = { ...newFiles[fileName], content: result.filesToUpdate[fileName] };
+            } else {
+                newFiles[fileName] = { 
+                    content: result.filesToUpdate[fileName], 
+                    language: getLanguageFromFileName(fileName) 
+                };
+            }
+        }
+        return newFiles;
+      });
+      
+      // If new files were created, open the first one in a new tab
+      if (newFilesCreated.length > 0) {
+        const newFileToOpen = newFilesCreated[0];
+        if (!openTabs.includes(newFileToOpen)) {
+            setOpenTabs(prevTabs => [...prevTabs, newFileToOpen]);
+        }
+        setActiveTab(newFileToOpen);
+      }
+    }
+
+    if (result.commandsToExecute && result.commandsToExecute.length > 0) {
+      setActiveTab('Terminal');
+    
+      // Use an async IIFE to handle sequential commands
+      (async () => {
+        // Start with the current state from the closure
+        let currentFiles = files;
+        let currentCommittedFiles = committedFiles;
+        let currentInstalledPackages = installedPackages;
+    
+        for (const command of result.commandsToExecute) {
+          await new Promise(resolve => setTimeout(resolve, 500)); // UX delay
+    
+          const commandNode = (
+            <div key={`cmd-ai-${Date.now()}-${Math.random()}`}>
+              <span className="font-bold text-green-400 mr-2">ai@codestudio:~$</span>
+              <span>{command}</span>
+            </div>
+          );
+          setTerminalOutput(prev => [...prev, commandNode]);
+    
+          const res = executeCommand(command, currentFiles, currentCommittedFiles, currentInstalledPackages);
+    
+          const outputNodes = res.output.map((line, index) => (
+            <pre key={`out-ai-${Date.now()}-${Math.random()}-${index}`} className="whitespace-pre-wrap">{line}</pre>
+          ));
+          setTerminalOutput(prev => [...prev, ...outputNodes]);
+    
+          // Update local variables to pass to the next command iteration
+          if (res.newFiles) currentFiles = res.newFiles;
+          if (res.newCommittedFiles) currentCommittedFiles = res.newCommittedFiles;
+          if (res.newInstalledPackages) currentInstalledPackages = res.newInstalledPackages;
+        }
+    
+        // After all commands, update the component's state
+        setFiles(currentFiles);
+        setCommittedFiles(currentCommittedFiles);
+        setInstalledPackages(currentInstalledPackages);
+      })();
     }
 
     setIsLoading(false);
-  }, [messages, files, activeTab]);
+  }, [messages, files, apiKey, activeRoadmap, openTabs, committedFiles, installedPackages]);
+
+  const handleProceedWithRoadmap = useCallback(() => {
+    if (!activeRoadmap) return;
+    const task = activeRoadmap.tasks[activeRoadmap.currentStep];
+    const prompt = `OK, please proceed with step ${activeRoadmap.currentStep + 1}: "${task}"`;
+    handleSendMessage(prompt);
+  }, [activeRoadmap, handleSendMessage]);
   
   const handleImportRepo = async (url: string) => {
     const newFiles = await importRepoFromUrl(url);
@@ -150,8 +334,8 @@ function App() {
     }
 
     setFiles(newFiles);
+    setCommittedFiles(newFiles);
     
-    // Reset editor state for the new project
     const newFileKeys = Object.keys(newFiles);
     const defaultFile = 
       newFileKeys.find(f => f.toLowerCase() === 'index.html') ||
@@ -162,60 +346,218 @@ function App() {
     setActiveTab(defaultFile);
     setMessages(initialMessages);
     setViewMode('explorer');
+    setInstalledPackages([]);
+    setActiveRoadmap(null);
   };
 
   const handleClearProject = () => {
-    localStorage.removeItem('code-studio-files');
-    setFiles(initialFiles);
-    setOpenTabs(['index.html']);
-    setActiveTab('index.html');
-    setMessages(initialMessages);
+    if (window.confirm('Are you sure you want to clear the project? This will delete all files and cannot be undone.')) {
+      localStorage.removeItem('code-studio-files');
+      setFiles(initialFiles);
+      setCommittedFiles(initialFiles);
+      setOpenTabs(['index.html']);
+      setActiveTab('index.html');
+      setMessages(initialMessages);
+      setApiUsageCount(0);
+      setInstalledPackages([]);
+      setActiveRoadmap(null);
+    }
   };
 
+  const handleLoadExampleProject = (projectFiles: Files) => {
+    setFiles(projectFiles);
+    setCommittedFiles(projectFiles);
+
+    const fileKeys = Object.keys(projectFiles);
+    // A simple heuristic to find the "main" file to open
+    const mainFile = 
+        fileKeys.find(f => f.toLowerCase().includes('index.html')) ||
+        fileKeys.find(f => f.toLowerCase().includes('app.py')) ||
+        fileKeys.find(f => f.toLowerCase().includes('program.cs')) ||
+        fileKeys.find(f => f.toLowerCase().includes('index.ts')) ||
+        fileKeys[0] || 
+        'Live Preview';
+
+    setOpenTabs([mainFile]);
+    setActiveTab(mainFile);
+    setMessages(initialMessages);
+    setInstalledPackages([]);
+    setActiveRoadmap(null);
+    setShowStudio(true);
+  };
+
+  const handleCommitChanges = () => {
+    setCommittedFiles(files);
+  };
+
+  const handleDiscardFileChanges = (fileName: string) => {
+    setFiles(prevFiles => ({
+      ...prevFiles,
+      [fileName]: committedFiles[fileName],
+    }));
+  };
+
+  const handleTerminalCommand = useCallback((command: string) => {
+    const commandNode = (
+        <div key={`cmd-${terminalOutput.length}`}>
+            <span className="font-bold text-blue-400 mr-2">user@codestudio:~$</span>
+            <span>{command}</span>
+        </div>
+    );
+    
+    if (command.trim() === 'clear') {
+        setTerminalOutput([]);
+        return;
+    }
+    
+    const result = executeCommand(command, files, committedFiles, installedPackages);
+
+    const outputNodes = result.output.map((line, index) => (
+      <pre key={`out-${terminalOutput.length}-${index}`} className="whitespace-pre-wrap">{line}</pre>
+    ));
+    
+    setTerminalOutput(prev => [...prev, commandNode, ...outputNodes]);
+    
+    if (result.newFiles) {
+        setFiles(result.newFiles);
+    }
+    
+    if (result.newCommittedFiles) {
+        setCommittedFiles(result.newCommittedFiles);
+    }
+    if (result.newInstalledPackages) {
+        setInstalledPackages(result.newInstalledPackages);
+    }
+  }, [files, committedFiles, terminalOutput, installedPackages]);
+
+  const handleTabSelection = (tabName: string) => {
+    setActiveTab(tabName);
+    setModifiedByAI(prev => prev.filter(f => f !== tabName));
+  };
 
   const handleOpenFile = (fileName: string) => {
+    if (!isSidebarVisible) {
+        handleViewChange(viewMode);
+    }
     if (!openTabs.includes(fileName)) {
       setOpenTabs([...openTabs, fileName]);
     }
-    setActiveTab(fileName);
+    handleTabSelection(fileName);
+    setViewMode('explorer');
   };
 
   const handleCloseTab = (fileName: string) => {
     const newTabs = openTabs.filter(tab => tab !== fileName);
     setOpenTabs(newTabs);
     if (activeTab === fileName) {
-      setActiveTab(newTabs.length > 0 ? newTabs[0] : 'Live Preview');
+      const newActiveTab = newTabs.length > 0 ? newTabs[0] : 'Live Preview';
+      handleTabSelection(newActiveTab);
     }
   };
+
+  const handleApiKeyChange = (newKey: string) => {
+    setApiKey(newKey);
+  };
+
+  const handleSidebarResize = useCallback((delta: number) => {
+    setSidebarWidth(prev => Math.max(MIN_PANEL_WIDTH, prev + delta));
+  }, []);
+
+  const handleChatPanelResize = useCallback((delta: number) => {
+    setChatPanelWidth(prev => Math.max(MIN_PANEL_WIDTH, prev - delta));
+  }, []);
+
+  if (isAuthenticating) {
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen w-screen bg-gray-100 dark:bg-[#1e1e1e] text-gray-800 dark:text-gray-300">
+            <div className="flex items-center space-x-3">
+                <div className="w-5 h-5 border-2 border-t-transparent border-blue-500 rounded-full animate-spin"></div>
+                <span className="text-lg">Authenticating with GitHub...</span>
+            </div>
+        </div>
+    );
+  }
+
+  if (!showStudio) {
+    return <SplashScreen onEnter={() => setShowStudio(true)} onLoadExample={handleLoadExampleProject} />;
+  }
 
   return (
     <div className="h-screen w-screen flex flex-col font-sans">
       <div className="flex flex-1 overflow-hidden">
-        <ActivityBar viewMode={viewMode} setViewMode={setViewMode} />
-        <Sidebar
-          viewMode={viewMode}
-          files={files}
-          onOpenFile={handleOpenFile}
-          messages={messages}
-          onSendMessage={handleSendMessage}
-          isLoading={isLoading}
-          onImportRepo={handleImportRepo}
-          onClearProject={handleClearProject}
+        <ActivityBar 
+            viewMode={viewMode} 
+            onViewChange={handleViewChange}
+            isSidebarVisible={isSidebarVisible}
+            isChatPanelVisible={isChatPanelVisible}
         />
-        <main className="flex-1 flex flex-col bg-gray-100 dark:bg-[#1e1e1e]">
+
+        {isSidebarVisible &&
+            <Sidebar
+            width={sidebarWidth}
+            viewMode={viewMode}
+            files={files}
+            onOpenFile={handleOpenFile}
+            onImportRepo={handleImportRepo}
+            onClearProject={handleClearProject}
+            theme={theme}
+            setTheme={setTheme}
+            committedFiles={committedFiles}
+            onCommitChanges={handleCommitChanges}
+            onDiscardFileChanges={handleDiscardFileChanges}
+            apiKey={apiKey}
+            onApiKeyChange={handleApiKeyChange}
+            modifiedByAI={modifiedByAI}
+            githubUser={githubUser}
+            setGithubUser={setGithubUser}
+            />
+        }
+        {isSidebarVisible && <Resizer onResize={handleSidebarResize} />}
+        
+        <main className="flex-1 flex flex-col bg-gray-100 dark:bg-[#1e1e1e] min-w-0">
           <Editor
             files={files}
             openTabs={openTabs}
             activeTab={activeTab}
-            setActiveTab={setActiveTab}
+            setActiveTab={handleTabSelection}
             onCloseTab={handleCloseTab}
             theme={theme}
+            modifiedByAI={modifiedByAI}
+            onTerminalCommand={handleTerminalCommand}
+            terminalOutput={terminalOutput}
           />
         </main>
+        
+        {isChatPanelVisible && <Resizer onResize={handleChatPanelResize} />}
+        {isChatPanelVisible && 
+            <ChatPanel 
+            width={chatPanelWidth}
+            messages={messages}
+            onSendMessage={handleSendMessage}
+            isLoading={isLoading}
+            activeRoadmap={activeRoadmap}
+            onProceedWithRoadmap={handleProceedWithRoadmap}
+            />
+        }
+
       </div>
-      <StatusBar isLoading={isLoading} theme={theme} setTheme={setTheme} />
+      <StatusBar isLoading={isLoading} apiUsageCount={apiUsageCount} />
+      <footer className="flex-shrink-0 px-4 py-2 bg-gray-200 dark:bg-[#252526] text-gray-500 dark:text-gray-400 text-xs border-t border-gray-300 dark:border-gray-900/50">
+        <div className="flex flex-col md:flex-row items-center justify-center md:space-x-4 space-y-1 md:space-y-0 text-center md:text-left">
+            <div className="font-semibold">
+                <span>👨‍💻 Julio Campos Machado | Fullstack Developer @ Like Look Solutions</span>
+            </div>
+            <div className="hidden md:block border-l border-gray-400 dark:border-gray-600 h-4"></div>
+            <div className="flex items-center space-x-4">
+                <a href="https://likelook.wixsite.com/solutions" target="_blank" rel="noopener noreferrer" className="hover:text-blue-500 dark:hover:text-blue-400 transition-colors">
+                    🌐 Site Oficial
+                </a>
+                <span>📱 WhatsApp: +55 11 99294-6628</span>
+            </div>
+        </div>
+      </footer>
     </div>
   );
 }
 
-export default App;
+// FIX: Removed default export statement that was causing issues.
